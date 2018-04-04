@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using Xunit;
 using PactNet.Mocks.MockHttpService;
 using PactNet.Mocks.MockHttpService.Models;
@@ -7,6 +8,12 @@ using System.Collections.Generic;
 
 namespace tests
 {
+    public class OrderDetails
+    {
+        public string RestaurantReference { get; set; }
+        public int PartnerSubscriptionId { get; set; }
+    }
+
     public class ConsumerPactTests : IClassFixture<ConsumerPactClassFixture>
     {
         private IMockProviderService _mockProviderService;
@@ -20,109 +27,20 @@ namespace tests
         }
 
         [Fact]
-        public void ItHandlesInvalidDateParam()
+        public void ItReturnsDetailsCorrectly()
         {
-            // Arange
-            var invalidRequestMessage = "validDateTime is not a date or time";
-            _mockProviderService.Given("There is data")
-                                .UponReceiving("A invalid GET request for Date Validation with invalid date parameter")
+            var orderDetails = new OrderDetails
+            {
+                RestaurantReference = "TestRestaurant",
+                PartnerSubscriptionId = 5224
+            };
+
+            _mockProviderService.UponReceiving("A valid GET request for Order Creation Info")
                                 .With(new ProviderServiceRequest 
                                 {
                                     Method = HttpVerb.Get,
-                                    Path = "/api/provider",
-                                    Query = "validDateTime=lolz"
-                                })
-                                .WillRespondWith(new ProviderServiceResponse {
-                                    Status = 400,
-                                    Headers = new Dictionary<string, object>
-                                    {
-                                        { "Content-Type", "application/json; charset=utf-8" }
-                                    },
-                                    Body = new 
-                                    {
-                                        message = invalidRequestMessage
-                                    }
-                                });
-
-            // Act
-            var result = ConsumerApiClient.ValidateDateTimeUsingProviderApi("lolz", _mockProviderServiceBaseUri).GetAwaiter().GetResult();
-            var resultBodyText = result.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-
-            // Assert
-            Assert.Contains(invalidRequestMessage, resultBodyText);
-        }
-
-        [Fact]
-        public void ItHandlesEmptyDateParam()
-        {
-            // Arrange
-            var invalidRequestMessage = "validDateTime is required";
-            _mockProviderService.Given("There is data")
-                                .UponReceiving("A invalid GET request for Date Validation with empty string date parameter")
-                                .With(new ProviderServiceRequest 
-                                {
-                                    Method = HttpVerb.Get,
-                                    Path = "/api/provider",
-                                    Query = "validDateTime="
-                                })
-                                .WillRespondWith(new ProviderServiceResponse {
-                                    Status = 400,
-                                    Headers = new Dictionary<string, object>
-                                    {
-                                        { "Content-Type", "application/json; charset=utf-8" }
-                                    },
-                                    Body = new 
-                                    {
-                                        message = invalidRequestMessage
-                                    }
-                                });
-
-            // Act
-            var result = ConsumerApiClient.ValidateDateTimeUsingProviderApi(String.Empty, _mockProviderServiceBaseUri).GetAwaiter().GetResult();
-            var resultBodyText = result.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-
-            // Assert
-            Assert.Contains(invalidRequestMessage, resultBodyText);
-        }
-
-        [Fact]
-        public void ItHandlesNoData()
-        {
-            // Arrange
-            _mockProviderService.Given("There is no data")
-                                .UponReceiving("A valid GET request for Date Validation")
-                                .With(new ProviderServiceRequest 
-                                {
-                                    Method = HttpVerb.Get,
-                                    Path = "/api/provider",
-                                    Query = "validDateTime=04/04/2018"
-                                })
-                                .WillRespondWith(new ProviderServiceResponse {
-                                    Status = 404
-                                });
-
-            // Act
-            var result = ConsumerApiClient.ValidateDateTimeUsingProviderApi("04/04/2018", _mockProviderServiceBaseUri).GetAwaiter().GetResult();
-            var resultStatus = (int)result.StatusCode;
-
-            // Assert
-            Assert.Equal(404, resultStatus);
-        }
-
-        [Fact]
-        public void ItParsesADateCorrectly()
-        {
-            var expectedDateString = "04/05/2018";
-            var expectedDateParsed = DateTime.Parse(expectedDateString).ToString("dd-MM-yyyy HH:mm:ss");
-
-            // Arrange
-            _mockProviderService.Given("There is data")
-                                .UponReceiving("A valid GET request for Date Validation")
-                                .With(new ProviderServiceRequest 
-                                {
-                                    Method = HttpVerb.Get,
-                                    Path = "/api/provider",
-                                    Query = $"validDateTime={expectedDateString}"
+                                    Path = "/orders/creationinfo",
+                                    Query = $"restaurantReference={orderDetails.RestaurantReference}&partnerSubscriptionId={orderDetails.PartnerSubscriptionId}"
                                 })
                                 .WillRespondWith(new ProviderServiceResponse {
                                     Status = 200,
@@ -132,17 +50,48 @@ namespace tests
                                     },
                                     Body = new 
                                     {
-                                        test = "NO",
-                                        validDateTime = expectedDateParsed
+                                        restaurantId = 298648,
+                                        partnerSubscriptionId = 5224,
+                                        partnerName = "JPTest",
+                                        isRdsRestaurant = true,
+                                        serviceType = "Rds",
                                     }
                                 });
 
-            // Act
-            var result = ConsumerApiClient.ValidateDateTimeUsingProviderApi(expectedDateString, _mockProviderServiceBaseUri).GetAwaiter().GetResult();
-            var resultBody = result.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var result = ConsumerApiClient.GetOrderDetails(orderDetails.RestaurantReference, orderDetails.PartnerSubscriptionId, _mockProviderServiceBaseUri).GetAwaiter().GetResult();
+            var resultBodyText = result.Content.ReadAsStringAsync().GetAwaiter().GetResult();
 
-            // Assert
-            Assert.Contains(expectedDateParsed, resultBody);
+            Assert.Contains(orderDetails.PartnerSubscriptionId.ToString(), resultBodyText);
+        }
+
+        [Fact]
+        public void ItReturnsBadRequestWithInvalidPartnerSubscriptionId()
+        {
+            var orderDetails = new OrderDetails
+            {
+                RestaurantReference = "TestRestaurant",
+                PartnerSubscriptionId = 5225
+            };
+
+            _mockProviderService.UponReceiving("A invalid GET request for Order Creation Info with bad PartnerSubscriptionId")
+                                .With(new ProviderServiceRequest 
+                                {
+                                    Method = HttpVerb.Get,
+                                    Path = "/orders/creationinfo",
+                                    Query = $"restaurantReference={orderDetails.RestaurantReference}&partnerSubscriptionId={orderDetails.PartnerSubscriptionId}"
+                                })
+                                .WillRespondWith(new ProviderServiceResponse {
+                                    Status = 400,
+                                    Headers = new Dictionary<string, object>
+                                    {
+                                        { "Content-Type", "application/json; charset=utf-8" }
+                                    }
+                                });
+
+            var result = ConsumerApiClient.GetOrderDetails(orderDetails.RestaurantReference, orderDetails.PartnerSubscriptionId, _mockProviderServiceBaseUri).GetAwaiter().GetResult();
+            var resultBodyText = result.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+            Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
         }
     }
 }

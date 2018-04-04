@@ -6,13 +6,14 @@ namespace Consumer
 {
     public static class ConsumerApiClient
     {
-        static public async Task<HttpResponseMessage> ValidateDateTimeUsingProviderApi(string dateTimeToValidate, string baseUri)
+        static public async Task<HttpResponseMessage> GetOrderDetails(string restaurantReference, int partnerSubscriptionId, string baseUri)
         {
             using (var client = new HttpClient { BaseAddress = new Uri(baseUri)})
             {
                 try
                 {
-                    var response = await client.GetAsync($"/api/provider?validDateTime={dateTimeToValidate}");
+                    // Change this to partnerconnect api endpoint
+                    var response = await client.GetAsync($"/orders/creationinfo?restaurantReference={restaurantReference}&partnerSubscriptionId={partnerSubscriptionId}");
                     return response;
                 }
                 catch (System.Exception ex)
